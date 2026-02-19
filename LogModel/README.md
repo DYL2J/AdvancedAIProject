@@ -4,7 +4,7 @@ This section provides the basics of a Logistic model for predicting re orders fo
 
 # Structure
 
-- `data_generation.py`  
+- `dataCreation.py`  
   Generates a synthetic grocery dataset with realistic purchasing and reordering behaviour.  
   Outputs the CSV files listed below.
 
@@ -63,5 +63,3 @@ run by using command
 
 python AIDemo.py
 
-
-here is what i have written could you improve the formatting please
