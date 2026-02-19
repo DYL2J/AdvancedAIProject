@@ -1,0 +1,57 @@
+# Re-order Logistic Model
+
+This section describes a logistic regression–based model for predicting product re-orders for users, developed as part of the **Advanced Artificial Intelligence** module.
+
+The system predicts the likelihood that a given user will re-order a particular product based on their historical purchasing behaviour, and outputs the top-K most likely products.
+
+---
+
+## Project Structure
+
+### Data Generation
+
+- `data_generation.py`  
+  Generates a synthetic grocery dataset with realistic purchasing and reordering behaviour.  
+  Outputs the CSV files listed below.
+
+- `users.csv`  
+  Contains user identifiers (200 users).
+
+- `products.csv`  
+  Contains product identifiers and product categories (150 products).
+
+- `orders.csv`  
+  Contains order-level information, including user ID and order number.
+
+- `order_products.csv`  
+  Contains product-level order data, including the binary target variable `reordered`.
+
+---
+
+### Model & Exported Artefacts
+
+- `reorder_model.joblib`  
+  Trained scikit-learn pipeline including preprocessing and logistic regression classifier.
+
+- `product_purchase_counts.joblib`  
+  Dictionary mapping product IDs to total purchase counts.
+
+- `product_reorder_rates.joblib`  
+  Dictionary mapping product IDs to average reorder rates.
+
+These artefacts allow inference to be performed without retraining the model.
+
+---
+
+## Data Description
+
+The data is generated synthetically based on the structure and behavioural patterns of the Instacart Online Grocery Basket Analysis dataset:
+
+https://www.kaggle.com/datasets/yasserh/instacart-online-grocery-basket-analysis-dataset
+
+The synthetic data mirrors key characteristics of the real dataset while remaining lightweight and fully controllable for experimentation.
+
+For full details of the data generation process, see:
+
+```python
+data_generation.py
