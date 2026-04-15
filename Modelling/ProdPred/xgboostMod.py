@@ -1,95 +1,26 @@
 import warnings
-warnings.filterwarnings("ignore")
 
-import pandas as pd
 import numpy as np
-
-from xgboost import XGBClassifier
+import pandas as pd
 from sklearn.metrics import (
     accuracy_score,
+    classification_report,
+    confusion_matrix,
+    f1_score,
     precision_score,
     recall_score,
-    f1_score,
     roc_auc_score,
-    confusion_matrix,
-    classification_report
 )
+from xgboost import XGBClassifier
 
-# ============================================================
-# 1. LOAD DATA
-# ============================================================
-
-ORDERS_PATH = "orders.csv"
-ORDER_PRODUCTS_PATH = "order_products.csv"
-PRODUCTS_PATH = "products.csv"
-
-orders = pd.read_csv(ORDERS_PATH)
-order_products = pd.read_csv(ORDER_PRODUCTS_PATH)
-products = pd.read_csv(PRODUCTS_PATH)
-
-print("Loaded data:")
-print(f"orders: {orders.shape}")
-print(f"order_products: {order_products.shape}")
-print(f"products: {products.shape}")
+warnings.filterwarnings("ignore")
 
 
-# ============================================================
-# 2. BUILD TRAINING DATASET
-# ============================================================
-# We create features using only information available BEFORE
-# the current purchase row, to avoid leakage.
+ORDERS_PATH = "Dataset/orders.csv"
+ORDER_PRODUCTS_PATH = "Dataset/order_products.csv"
+PRODUCTS_PATH = "Dataset/products.csv"
 
-def build_dataset(orders_df, order_products_df, products_df):
-    # Merge all relevant tables
-    df = (
-        order_products_df
-        .merge(orders_df, on="order_id", how="left")
-        .merge(products_df, on="product_id", how="left")
-    )
-
-    # Sort chronologically per user
-    df = df.sort_values(
-        by=["user_id", "order_number", "order_id", "product_id"]
-    ).reset_index(drop=True)
-
-    # Basic historical features
-    df["user_total_prior_orders"] = df["order_number"] - 1
-
-    # Number of items user has purchased before this row
-    df["user_total_prior_items"] = df.groupby("user_id").cumcount()
-
-    # Number of times THIS user has bought THIS product before
-    df["user_product_prior_purchases"] = df.groupby(
-        ["user_id", "product_id"]
-    ).cumcount()
-
-    # Number of times THIS product has been purchased globally before
-    df["product_prior_purchases_global"] = df.groupby("product_id").cumcount()
-
-    # Number of distinct products the user had bought before this row
-    user_seen_products = {}
-    distinct_prior = []
-
-    for user_id, product_id in zip(df["user_id"].to_numpy(), df["product_id"].to_numpy()):
-        seen = user_seen_products.setdefault(user_id, set())
-        distinct_prior.append(len(seen))
-        seen.add(product_id)
-
-    df["user_distinct_products_prior"] = distinct_prior
-
-    # Keep original merged dataframe for reference
-    return df
-
-
-df = build_dataset(orders, order_products, products)
-
-print("\nMerged training dataframe shape:", df.shape)
-print(df.head())
-
-
-# ============================================================
-# 3. PREPARE FEATURES
-# ============================================================
+TARGET_COLUMN = "reordered"
 
 FEATURE_COLUMNS_NUMERIC = [
     "user_id",
@@ -98,137 +29,212 @@ FEATURE_COLUMNS_NUMERIC = [
     "user_total_prior_items",
     "user_product_prior_purchases",
     "product_prior_purchases_global",
-    "user_distinct_products_prior"
+    "user_distinct_products_prior",
 ]
 
-TARGET_COLUMN = "reordered"
+CATEGORICAL_COLUMNS = ["category"]
 
-# One-hot encode category
-X = df[FEATURE_COLUMNS_NUMERIC + ["category"]].copy()
-X = pd.get_dummies(X, columns=["category"], drop_first=False)
+MODEL_PARAMS = {
+    "n_estimators": 250,
+    "max_depth": 6,
+    "learning_rate": 0.08,
+    "subsample": 0.8,
+    "colsample_bytree": 0.8,
+    "objective": "binary:logistic",
+    "eval_metric": "logloss",
+    "random_state": 42,
+    "n_jobs": -1,
+}
 
-y = df[TARGET_COLUMN].astype(int)
-
-feature_columns_final = X.columns.tolist()
-
-print("\nNumber of final features:", len(feature_columns_final))
-
-
-# ============================================================
-# 4. TRAIN / TEST SPLIT
-# ============================================================
-# A realistic split: use each user's LAST order as test data,
-# and all earlier orders as training data.
-
-max_order_per_user = df.groupby("user_id")["order_number"].transform("max")
-test_mask = df["order_number"] == max_order_per_user
-train_mask = ~test_mask
-
-X_train = X.loc[train_mask].copy()
-X_test = X.loc[test_mask].copy()
-
-y_train = y.loc[train_mask].copy()
-y_test = y.loc[test_mask].copy()
-
-test_df = df.loc[test_mask].copy()
-
-print("\nTrain shape:", X_train.shape)
-print("Test shape:", X_test.shape)
-print("Train positive rate:", y_train.mean())
-print("Test positive rate:", y_test.mean())
+EXAMPLE_USER_ID = 1
+TOP_N_REORDERS = 5
 
 
-# ============================================================
-# 5. TRAIN XGBOOST MODEL
-# ============================================================
+def load_data(
+    orders_path: str,
+    order_products_path: str,
+    products_path: str,
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
+    """Load source CSV files."""
+    orders_df = pd.read_csv(orders_path)
+    order_products_df = pd.read_csv(order_products_path)
+    products_df = pd.read_csv(products_path)
 
-model = XGBClassifier(
-    n_estimators=250,
-    max_depth=6,
-    learning_rate=0.08,
-    subsample=0.8,
-    colsample_bytree=0.8,
-    objective="binary:logistic",
-    eval_metric="logloss",
-    random_state=42,
-    n_jobs=-1
-)
+    print("Loaded data:")
+    print(f"orders: {orders_df.shape}")
+    print(f"order_products: {order_products_df.shape}")
+    print(f"products: {products_df.shape}")
 
-model.fit(X_train, y_train)
-
-print("\nModel training complete.")
+    return orders_df, order_products_df, products_df
 
 
-# ============================================================
-# 6. EVALUATE MODEL
-# ============================================================
+def build_dataset(
+    orders_df: pd.DataFrame,
+    order_products_df: pd.DataFrame,
+    products_df: pd.DataFrame,
+) -> pd.DataFrame:
+    """
+    Build the modelling dataset using only information available
+    before the current purchase row to avoid leakage.
+    """
+    df = (
+        order_products_df
+        .merge(orders_df, on="order_id", how="left")
+        .merge(products_df, on="product_id", how="left")
+    )
 
-y_pred_proba = model.predict_proba(X_test)[:, 1]
-y_pred = (y_pred_proba >= 0.5).astype(int)
+    df = df.sort_values(
+        by=["user_id", "order_number", "order_id", "product_id"]
+    ).reset_index(drop=True)
 
-acc = accuracy_score(y_test, y_pred)
-prec = precision_score(y_test, y_pred, zero_division=0)
-rec = recall_score(y_test, y_pred, zero_division=0)
-f1 = f1_score(y_test, y_pred, zero_division=0)
-roc_auc = roc_auc_score(y_test, y_pred_proba)
-cm = confusion_matrix(y_test, y_pred)
+    df["user_total_prior_orders"] = df["order_number"] - 1
+    df["user_total_prior_items"] = df.groupby("user_id").cumcount()
+    df["user_product_prior_purchases"] = df.groupby(
+        ["user_id", "product_id"]
+    ).cumcount()
+    df["product_prior_purchases_global"] = df.groupby("product_id").cumcount()
 
-print("\n================ MODEL EVALUATION ================")
-print(f"Accuracy : {acc:.4f}")
-print(f"Precision: {prec:.4f}")
-print(f"Recall   : {rec:.4f}")
-print(f"F1-score : {f1:.4f}")
-print(f"ROC-AUC  : {roc_auc:.4f}")
+    user_seen_products: dict[int, set[int]] = {}
+    distinct_prior = []
 
-print("\nConfusion Matrix:")
-print(cm)
+    for user_id, product_id in zip(
+        df["user_id"].to_numpy(),
+        df["product_id"].to_numpy(),
+    ):
+        seen_products = user_seen_products.setdefault(user_id, set())
+        distinct_prior.append(len(seen_products))
+        seen_products.add(product_id)
 
-print("\nClassification Report:")
-print(classification_report(y_test, y_pred, digits=4))
+    df["user_distinct_products_prior"] = distinct_prior
+
+    return df
 
 
-# ============================================================
-# 7. BUILD RECOMMENDATION DATA FOR TOP-5 REORDERS
-# ============================================================
-# We now build a "current state" for each user-product pair using
-# all available historical purchases, then score likely reorders.
+def prepare_features(
+    df: pd.DataFrame,
+) -> tuple[pd.DataFrame, pd.Series, list[str]]:
+    """Prepare model feature matrix and target vector."""
+    x_data = df[FEATURE_COLUMNS_NUMERIC + CATEGORICAL_COLUMNS].copy()
+    x_data = pd.get_dummies(
+        x_data,
+        columns=CATEGORICAL_COLUMNS,
+        drop_first=False,
+    )
 
-def build_recommendation_frame(full_df, products_df, feature_columns):
-    # How many times each user bought each product in total
+    y_data = df[TARGET_COLUMN].astype(int)
+    feature_columns = x_data.columns.tolist()
+
+    print(f"\nNumber of final features: {len(feature_columns)}")
+
+    return x_data, y_data, feature_columns
+
+
+def split_train_test_by_last_order(
+    df: pd.DataFrame,
+    x_data: pd.DataFrame,
+    y_data: pd.Series,
+) -> tuple[pd.DataFrame, pd.DataFrame, pd.Series, pd.Series, pd.DataFrame]:
+    """
+    Split data so that each user's last order is used for testing
+    and all earlier orders are used for training.
+    """
+    max_order_per_user = df.groupby("user_id")["order_number"].transform("max")
+    test_mask = df["order_number"] == max_order_per_user
+    train_mask = ~test_mask
+
+    x_train = x_data.loc[train_mask].copy()
+    x_test = x_data.loc[test_mask].copy()
+    y_train = y_data.loc[train_mask].copy()
+    y_test = y_data.loc[test_mask].copy()
+    test_df = df.loc[test_mask].copy()
+
+    print(f"\nTrain shape: {x_train.shape}")
+    print(f"Test shape: {x_test.shape}")
+    print(f"Train positive rate: {y_train.mean():.4f}")
+    print(f"Test positive rate: {y_test.mean():.4f}")
+
+    return x_train, x_test, y_train, y_test, test_df
+
+
+def train_model(x_train: pd.DataFrame, y_train: pd.Series) -> XGBClassifier:
+    """Train the XGBoost classifier."""
+    model = XGBClassifier(**MODEL_PARAMS)
+    model.fit(x_train, y_train)
+
+    print("\nModel training complete.")
+    return model
+
+
+def evaluate_model(
+    model: XGBClassifier,
+    x_test: pd.DataFrame,
+    y_test: pd.Series,
+) -> None:
+    """Evaluate the trained model and print classification metrics."""
+    y_pred_proba = model.predict_proba(x_test)[:, 1]
+    y_pred = (y_pred_proba >= 0.5).astype(int)
+
+    accuracy = accuracy_score(y_test, y_pred)
+    precision = precision_score(y_test, y_pred, zero_division=0)
+    recall = recall_score(y_test, y_pred, zero_division=0)
+    f1 = f1_score(y_test, y_pred, zero_division=0)
+    roc_auc = roc_auc_score(y_test, y_pred_proba)
+    conf_matrix = confusion_matrix(y_test, y_pred)
+
+    print("\n================ MODEL EVALUATION ================")
+    print(f"Accuracy : {accuracy:.4f}")
+    print(f"Precision: {precision:.4f}")
+    print(f"Recall   : {recall:.4f}")
+    print(f"F1-score : {f1:.4f}")
+    print(f"ROC-AUC  : {roc_auc:.4f}")
+
+    print("\nConfusion Matrix:")
+    print(conf_matrix)
+
+    print("\nClassification Report:")
+    print(classification_report(y_test, y_pred, digits=4))
+
+
+def build_recommendation_frame(
+    full_df: pd.DataFrame,
+    products_df: pd.DataFrame,
+    feature_columns: list[str],
+) -> tuple[pd.DataFrame, pd.DataFrame]:
+    """
+    Build a recommendation dataset representing the current state of
+    each user-product pair, then prepare it for scoring.
+    """
     user_product_state = (
         full_df.groupby(["user_id", "product_id"], as_index=False)
         .agg(user_product_prior_purchases=("product_id", "size"))
     )
 
-    # User-level totals
     user_state = (
         full_df.groupby("user_id", as_index=False)
         .agg(
             user_total_prior_items=("product_id", "size"),
             user_distinct_products_prior=("product_id", "nunique"),
-            user_total_prior_orders=("order_number", "max")
+            user_total_prior_orders=("order_number", "max"),
         )
     )
 
-    # Global product popularity
     product_state = (
         full_df.groupby("product_id", as_index=False)
         .agg(product_prior_purchases_global=("product_id", "size"))
     )
 
-    rec_df = (
+    recommendation_df = (
         user_product_state
         .merge(user_state, on="user_id", how="left")
         .merge(product_state, on="product_id", how="left")
         .merge(products_df, on="product_id", how="left")
     )
 
-    # Reorder only really makes sense for products already bought before,
-    # so we can keep only products user has purchased at least once.
-    rec_df = rec_df[rec_df["user_product_prior_purchases"] >= 1].copy()
+    recommendation_df = recommendation_df[
+        recommendation_df["user_product_prior_purchases"] >= 1
+    ].copy()
 
-    # Build feature matrix in exactly same format as training
-    rec_X = rec_df[
+    recommendation_x = recommendation_df[
         [
             "user_id",
             "product_id",
@@ -237,32 +243,43 @@ def build_recommendation_frame(full_df, products_df, feature_columns):
             "user_product_prior_purchases",
             "product_prior_purchases_global",
             "user_distinct_products_prior",
-            "category"
+            "category",
         ]
     ].copy()
 
-    rec_X = pd.get_dummies(rec_X, columns=["category"], drop_first=False)
+    recommendation_x = pd.get_dummies(
+        recommendation_x,
+        columns=["category"],
+        drop_first=False,
+    )
 
-    # Match training columns exactly
-    rec_X = rec_X.reindex(columns=feature_columns, fill_value=0)
+    recommendation_x = recommendation_x.reindex(
+        columns=feature_columns,
+        fill_value=0,
+    )
 
-    return rec_df, rec_X
-
-
-recommendation_df, recommendation_X = build_recommendation_frame(
-    full_df=df,
-    products_df=products,
-    feature_columns=feature_columns_final
-)
-
-recommendation_df["reorder_probability"] = model.predict_proba(recommendation_X)[:, 1]
+    return recommendation_df, recommendation_x
 
 
-# ============================================================
-# 8. FUNCTION: TOP 5 PRODUCTS A USER IS MOST LIKELY TO REORDER
-# ============================================================
+def add_recommendation_scores(
+    model: XGBClassifier,
+    recommendation_df: pd.DataFrame,
+    recommendation_x: pd.DataFrame,
+) -> pd.DataFrame:
+    """Add reorder probability scores to the recommendation DataFrame."""
+    scored_df = recommendation_df.copy()
+    scored_df["reorder_probability"] = model.predict_proba(
+        recommendation_x
+    )[:, 1]
+    return scored_df
 
-def get_top_5_reorders(user_id, recommendation_scores_df):
+
+def get_top_reorders_for_user(
+    user_id: int,
+    recommendation_scores_df: pd.DataFrame,
+    top_n: int = TOP_N_REORDERS,
+) -> pd.DataFrame:
+    """Return the top-N predicted reorders for a given user."""
     user_rows = recommendation_scores_df[
         recommendation_scores_df["user_id"] == user_id
     ].copy()
@@ -271,53 +288,100 @@ def get_top_5_reorders(user_id, recommendation_scores_df):
         print(f"\nNo historical purchases found for user_id={user_id}")
         return pd.DataFrame()
 
-    top5 = user_rows.sort_values(
+    top_reorders = user_rows.sort_values(
         by="reorder_probability",
-        ascending=False
-    ).head(5)
+        ascending=False,
+    ).head(top_n)
 
-    return top5[
+    return top_reorders[
         [
             "user_id",
             "product_id",
             "category",
             "user_product_prior_purchases",
             "product_prior_purchases_global",
-            "reorder_probability"
+            "reorder_probability",
         ]
     ]
 
 
-# ============================================================
-# 9. EXAMPLE USAGE
-# ============================================================
+def run_interactive_prompt(recommendation_scores_df: pd.DataFrame) -> None:
+    """Allow interactive lookup of top reorder predictions by user ID."""
+    while True:
+        user_input = input(
+            "\nEnter a user_id to get top 5 reorder predictions "
+            "(or 'q' to quit): "
+        ).strip()
 
-example_user_id = 1
-top5_for_user = get_top_5_reorders(example_user_id, recommendation_df)
+        if user_input.lower() == "q":
+            print("Exiting.")
+            break
 
-print(f"\n================ TOP 5 PREDICTED REORDERS FOR USER {example_user_id} ================")
-print(top5_for_user.to_string(index=False))
+        if not user_input.isdigit():
+            print("Please enter a valid numeric user_id.")
+            continue
+
+        chosen_user_id = int(user_input)
+        result = get_top_reorders_for_user(
+            chosen_user_id,
+            recommendation_scores_df,
+        )
+
+        if result.empty:
+            print("No results found for that user.")
+        else:
+            print(result.to_string(index=False))
 
 
-# ============================================================
-# 10. OPTIONAL: INTERACTIVE USER INPUT
-# ============================================================
+def main() -> None:
+    """Run the full reorder prediction and recommendation pipeline."""
+    orders_df, order_products_df, products_df = load_data(
+        ORDERS_PATH,
+        ORDER_PRODUCTS_PATH,
+        PRODUCTS_PATH,
+    )
 
-while True:
-    user_input = input("\nEnter a user_id to get top 5 reorder predictions (or 'q' to quit): ").strip()
+    df = build_dataset(orders_df, order_products_df, products_df)
 
-    if user_input.lower() == "q":
-        print("Exiting.")
-        break
+    print(f"\nMerged training dataframe shape: {df.shape}")
+    print(df.head())
 
-    if not user_input.isdigit():
-        print("Please enter a valid numeric user_id.")
-        continue
+    x_data, y_data, feature_columns = prepare_features(df)
 
-    chosen_user_id = int(user_input)
-    result = get_top_5_reorders(chosen_user_id, recommendation_df)
+    x_train, x_test, y_train, y_test, _ = split_train_test_by_last_order(
+        df,
+        x_data,
+        y_data,
+    )
 
-    if result.empty:
-        print("No results found for that user.")
-    else:
-        print(result.to_string(index=False))
+    model = train_model(x_train, y_train)
+    evaluate_model(model, x_test, y_test)
+
+    recommendation_df, recommendation_x = build_recommendation_frame(
+        full_df=df,
+        products_df=products_df,
+        feature_columns=feature_columns,
+    )
+
+    recommendation_scores_df = add_recommendation_scores(
+        model,
+        recommendation_df,
+        recommendation_x,
+    )
+
+    top_reorders = get_top_reorders_for_user(
+        EXAMPLE_USER_ID,
+        recommendation_scores_df,
+    )
+
+    print(
+        f"\n================ TOP 5 PREDICTED REORDERS FOR USER "
+        f"{EXAMPLE_USER_ID} ================"
+    )
+    print(top_reorders.to_string(index=False))
+
+    run_interactive_prompt(recommendation_scores_df)
+
+
+if __name__ == "__main__":
+    main()
