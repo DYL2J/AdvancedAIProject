@@ -319,3 +319,23 @@ def validate_one_epoch(
         total_n += batch_size
 
     return total_loss / total_n, total_acc / total_n
+
+
+def main() -> None:
+    set_seed(CFG.random_state)
+
+    df = load_clean_dataframe(CFG.dataset_csv)
+
+    train_df, val_df, test_df, class_names, class_to_idx, idx_to_class = build_splits(df)
+
+    train_loader, val_loader, test_loader = build_dataloaders(
+        train_df, val_df, test_df, class_to_idx
+    )
+
+    model = build_model(len(class_names))
+
+    print("Data loaded and model initialized.")
+
+
+if __name__ == "__main__":
+    main()

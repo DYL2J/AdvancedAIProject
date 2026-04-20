@@ -31,11 +31,9 @@ cd <repo-name>
 ```
 
 ### 2. Install Dependencies
-```bash
-pip install -r requirements.txt
-```
 
-3. Configure dataset path
+Configure dataset path:
+* add dataset link
 
 ### 3. Create a .env file:
 This .env is based off the .env_example file
