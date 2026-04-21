@@ -1,4 +1,6 @@
+import copy
 import random
+from pathlib import Path
 
 import numpy as np
 import pandas as pd
@@ -6,6 +8,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 from PIL import Image
+from sklearn.metrics import accuracy_score, classification_report, f1_score
 from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader, Dataset
 from torchvision import models, transforms
@@ -49,6 +52,7 @@ CFG = Config()
 def set_seed(seed: int = 42) -> None:
     """
     Set random seeds for reproducibility across Python, NumPy, and PyTorch.
+
     args:
         seed: The random seed value.
     """
@@ -64,12 +68,18 @@ def set_seed(seed: int = 42) -> None:
 def load_clean_dataframe(csv_path: str) -> pd.DataFrame:
     """
     Load and validate the deduplicated dataset CSV.
+
     args:
         csv_path: Path to the dataset CSV file.
+
     returns:
         A cleaned pandas DataFrame.
     """
-    df: pd.DataFrame = pd.read_csv(csv_path)
+    csv_file = Path(csv_path)
+    if not csv_file.exists():
+        raise FileNotFoundError(f"Dataset CSV not found: {csv_file.resolve()}")
+
+    df = pd.read_csv(csv_file)
 
     if "file_hash" in df.columns:
         df = df.drop(columns=["file_hash"])
@@ -78,14 +88,25 @@ def load_clean_dataframe(csv_path: str) -> pd.DataFrame:
         raise ValueError("Expected a 'path' column in dataset")
 
     if CFG.target_column not in df.columns:
-        raise ValueError(f"Expected target column '{CFG.target_column}' in dataset")
+        raise ValueError(
+            f"Expected target column '{CFG.target_column}' in dataset"
+        )
 
     df["path"] = df["path"].astype(str)
+    df = df[df["path"].notna()].copy()
+    df = df[df[CFG.target_column].notna()].copy()
 
     if df.empty:
-        raise ValueError("Dataset is empty")
+        raise ValueError("Dataset is empty after cleaning")
 
-    return df
+    missing_files = [p for p in df["path"] if not Path(p).exists()]
+    if missing_files:
+        raise FileNotFoundError(
+            f"Found {len(missing_files)} missing image paths in the CSV. "
+            f"Example: {missing_files[0]}"
+        )
+
+    return df.reset_index(drop=True)
 
 
 class ProduceDataset(Dataset):
@@ -105,32 +126,30 @@ class ProduceDataset(Dataset):
             class_to_idx: Mapping from class name to integer index.
             transform: Optional torchvision transform pipeline.
         """
-        self.df: pd.DataFrame = df.reset_index(drop=True).copy()
-        self.class_to_idx: dict[str, int] = class_to_idx
-        self.transform: transforms.Compose | None = transform
+        self.df = df.reset_index(drop=True).copy()
+        self.class_to_idx = class_to_idx
+        self.transform = transform
 
     def __len__(self) -> int:
         """
-        Returns the number of samples in the dataset.
-        returns:
-            The number of samples in the dataset.
+        Return the number of samples in the dataset.
         """
         return len(self.df)
 
     def __getitem__(self, idx: int) -> tuple[torch.Tensor, int]:
         """
-        Loads an image and its corresponding label, applies transforms, and returns them as tensors.
+        Load an image and label, apply transforms, and return tensors.
+
         args:
             idx: The index of the sample to retrieve.
-        returns:
-            A tuple (image_tensor, label_index) where:
-                - image_tensor: The transformed image as a PyTorch tensor.
-                - label_index: The integer index of the class label.
-        """
-        row: pd.Series = self.df.iloc[idx]
 
-        image_path: str = row["path"]
-        label_name: str = row[CFG.target_column]
+        returns:
+            A tuple of (image_tensor, label_index).
+        """
+        row = self.df.iloc[idx]
+
+        image_path = row["path"]
+        label_name = row[CFG.target_column]
 
         with Image.open(image_path) as img:
             image = img.convert("RGBA").convert("RGB")
@@ -138,11 +157,10 @@ class ProduceDataset(Dataset):
         if self.transform:
             image = self.transform(image)
 
-        label: int = self.class_to_idx[label_name]
+        label = self.class_to_idx[label_name]
         return image, label
 
 
-# Transofrmers
 train_transform = transforms.Compose(
     [
         transforms.Resize((CFG.image_size, CFG.image_size)),
@@ -165,18 +183,25 @@ eval_transform = transforms.Compose(
 def build_splits(
     df: pd.DataFrame,
 ) -> tuple[
-    pd.DataFrame, pd.DataFrame, pd.DataFrame, list[str], dict[str, int], dict[int, str]
+    pd.DataFrame,
+    pd.DataFrame,
+    pd.DataFrame,
+    list[str],
+    dict[str, int],
+    dict[int, str],
 ]:
     """
     Split dataset into train, validation, and test sets.
+
     args:
         df: Full dataset DataFrame.
+
     returns:
         train_df, val_df, test_df, class_names, class_to_idx, idx_to_class
     """
-    class_names: list[str] = sorted(df[CFG.target_column].unique().tolist())
-    class_to_idx: dict[str, int] = {name: i for i, name in enumerate(class_names)}
-    idx_to_class: dict[int, str] = {i: name for name, i in class_to_idx.items()}
+    class_names = sorted(df[CFG.target_column].unique().tolist())
+    class_to_idx = {name: i for i, name in enumerate(class_names)}
+    idx_to_class = {i: name for name, i in class_to_idx.items()}
 
     train_df, holdout_df = train_test_split(
         df,
@@ -185,7 +210,7 @@ def build_splits(
         random_state=CFG.random_state,
     )
 
-    relative_test_size: float = CFG.test_size / (CFG.val_size + CFG.test_size)
+    relative_test_size = CFG.test_size / (CFG.val_size + CFG.test_size)
 
     val_df, test_df = train_test_split(
         holdout_df,
@@ -218,7 +243,7 @@ def build_dataloaders(
     val_dataset = ProduceDataset(val_df, class_to_idx, transform=eval_transform)
     test_dataset = ProduceDataset(test_df, class_to_idx, transform=eval_transform)
 
-    pin_memory: bool = CFG.device == "cuda"
+    pin_memory = CFG.device == "cuda"
 
     train_loader = DataLoader(
         train_dataset,
@@ -249,7 +274,7 @@ def build_model(num_classes: int) -> nn.Module:
     """
     Build and return a ResNet18 model adapted for classification.
     """
-    model: nn.Module = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
+    model = models.resnet18(weights=models.ResNet18_Weights.DEFAULT)
     model.fc = nn.Linear(model.fc.in_features, num_classes)
     return model.to(CFG.device)
 
@@ -258,7 +283,7 @@ def compute_accuracy(logits: torch.Tensor, labels: torch.Tensor) -> float:
     """
     Compute classification accuracy for a batch.
     """
-    preds: torch.Tensor = torch.argmax(logits, dim=1)
+    preds = torch.argmax(logits, dim=1)
     return (preds == labels).float().mean().item()
 
 
@@ -273,7 +298,9 @@ def train_one_epoch(
     """
     model.train()
 
-    total_loss, total_acc, total_n = 0.0, 0.0, 0
+    total_loss = 0.0
+    total_acc = 0.0
+    total_n = 0
 
     for images, labels in loader:
         images = images.to(CFG.device, non_blocking=True)
@@ -297,14 +324,18 @@ def train_one_epoch(
 
 @torch.no_grad()
 def validate_one_epoch(
-    model: nn.Module, loader: DataLoader, criterion: nn.Module
+    model: nn.Module,
+    loader: DataLoader,
+    criterion: nn.Module,
 ) -> tuple[float, float]:
     """
     Evaluate the model on validation data.
     """
     model.eval()
 
-    total_loss, total_acc, total_n = 0.0, 0.0, 0
+    total_loss = 0.0
+    total_acc = 0.0
+    total_n = 0
 
     for images, labels in loader:
         images = images.to(CFG.device, non_blocking=True)
@@ -321,20 +352,182 @@ def validate_one_epoch(
     return total_loss / total_n, total_acc / total_n
 
 
+@torch.no_grad()
+def predict_loader(
+    model: nn.Module,
+    loader: DataLoader,
+) -> tuple[list[int], list[int], list[list[float]]]:
+    """
+    Run inference over a dataloader.
+
+    returns:
+        y_true, y_pred, y_probs
+    """
+    model.eval()
+
+    y_true: list[int] = []
+    y_pred: list[int] = []
+    y_probs: list[list[float]] = []
+
+    for images, labels in loader:
+        images = images.to(CFG.device, non_blocking=True)
+        labels = labels.to(CFG.device, non_blocking=True)
+
+        logits = model(images)
+        probs = torch.softmax(logits, dim=1)
+        preds = torch.argmax(probs, dim=1)
+
+        y_true.extend(labels.cpu().numpy().tolist())
+        y_pred.extend(preds.cpu().numpy().tolist())
+        y_probs.extend(probs.cpu().numpy().tolist())
+
+    return y_true, y_pred, y_probs
+
+
+def train_model(
+    model: nn.Module,
+    train_loader: DataLoader,
+    val_loader: DataLoader,
+) -> tuple[nn.Module, pd.DataFrame]:
+    """
+    Train the model and keep the best checkpoint by validation loss.
+    """
+    criterion = nn.CrossEntropyLoss()
+    optimizer = optim.Adam(
+        model.parameters(),
+        lr=CFG.lr,
+        weight_decay=CFG.weight_decay,
+    )
+
+    best_val_loss = float("inf")
+    best_state = copy.deepcopy(model.state_dict())
+    history_rows: list[dict[str, float | int]] = []
+
+    for epoch in range(1, CFG.epochs + 1):
+        train_loss, train_acc = train_one_epoch(
+            model,
+            train_loader,
+            criterion,
+            optimizer,
+        )
+        val_loss, val_acc = validate_one_epoch(
+            model,
+            val_loader,
+            criterion,
+        )
+
+        history_rows.append(
+            {
+                "epoch": epoch,
+                "train_loss": train_loss,
+                "train_accuracy": train_acc,
+                "val_loss": val_loss,
+                "val_accuracy": val_acc,
+            }
+        )
+
+        print(
+            f"Epoch {epoch}/{CFG.epochs} | "
+            f"train_loss={train_loss:.4f} | "
+            f"train_acc={train_acc:.4f} | "
+            f"val_loss={val_loss:.4f} | "
+            f"val_acc={val_acc:.4f}"
+        )
+
+        if val_loss < best_val_loss:
+            best_val_loss = val_loss
+            best_state = copy.deepcopy(model.state_dict())
+            torch.save(best_state, CFG.checkpoint_path)
+            print(f"Saved best checkpoint to {CFG.checkpoint_path}")
+
+    model.load_state_dict(best_state)
+    history_df = pd.DataFrame(history_rows)
+    history_df.to_csv(CFG.history_csv_path, index=False)
+    print(f"Saved training history to {CFG.history_csv_path}")
+
+    return model, history_df
+
+
+def evaluate_on_test(
+    model: nn.Module,
+    test_loader: DataLoader,
+    test_df: pd.DataFrame,
+    idx_to_class: dict[int, str],
+) -> None:
+    """
+    Evaluate the trained model on the test set and save predictions.
+    """
+    y_true, y_pred, y_probs = predict_loader(model, test_loader)
+
+    target_names = [idx_to_class[i] for i in sorted(idx_to_class)]
+    y_true_names = [idx_to_class[i] for i in y_true]
+    y_pred_names = [idx_to_class[i] for i in y_pred]
+
+    accuracy = accuracy_score(y_true, y_pred)
+    macro_f1 = f1_score(y_true, y_pred, average="macro")
+
+    print("\nTEST RESULTS")
+    print("-" * 50)
+    print(f"Accuracy : {accuracy:.4f}")
+    print(f"Macro F1 : {macro_f1:.4f}")
+    print("\nClassification Report:")
+    print(
+        classification_report(
+            y_true,
+            y_pred,
+            target_names=target_names,
+            digits=4,
+        )
+    )
+
+    predictions_df = test_df.copy()
+    predictions_df["true_label"] = y_true_names
+    predictions_df["predicted_label"] = y_pred_names
+
+    for class_idx, class_name in idx_to_class.items():
+        predictions_df[f"prob_{class_name}"] = [
+            probs[class_idx] for probs in y_probs
+        ]
+
+    predictions_df.to_csv(CFG.test_predictions_csv, index=False)
+    print(f"Saved test predictions to {CFG.test_predictions_csv}")
+
+
 def main() -> None:
+    """
+    Run the full training pipeline using deduplicated_dataset.csv.
+    """
     set_seed(CFG.random_state)
 
-    df = load_clean_dataframe(CFG.dataset_csv)
+    print(f"Using device: {CFG.device}")
+    print(f"Loading dataset from: {CFG.dataset_csv}")
 
-    train_df, val_df, test_df, class_names, class_to_idx, idx_to_class = build_splits(df)
+    df = load_clean_dataframe(CFG.dataset_csv)
+    print(f"Loaded {len(df)} rows from deduplicated dataset")
+
+    train_df, val_df, test_df, class_names, class_to_idx, idx_to_class = build_splits(
+        df
+    )
+
+    print(f"Train size: {len(train_df)}")
+    print(f"Val size  : {len(val_df)}")
+    print(f"Test size : {len(test_df)}")
+    print(f"Classes   : {class_names}")
 
     train_loader, val_loader, test_loader = build_dataloaders(
-        train_df, val_df, test_df, class_to_idx
+        train_df,
+        val_df,
+        test_df,
+        class_to_idx,
     )
 
     model = build_model(len(class_names))
+    model, _ = train_model(model, train_loader, val_loader)
 
-    print("Data loaded and model initialized.")
+    torch.save(model.state_dict(), CFG.final_model_path)
+    print(f"Saved final model to {CFG.final_model_path}")
+
+    evaluate_on_test(model, test_loader, test_df, idx_to_class)
 
 
 if __name__ == "__main__":
