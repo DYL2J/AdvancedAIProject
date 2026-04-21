@@ -57,3 +57,12 @@ To explore the project:
    * `RottenFresh/`
 3. Use the `Prototyping/` folder to understand the development process and experimentation.
 
+## Contributors
+
+This project was developed by:
+
+- Dylan Jones  
+- Harrison Mann  
+- Matt Nogodula  
+- Josh Okanlawon  
+- Sam Waxman
