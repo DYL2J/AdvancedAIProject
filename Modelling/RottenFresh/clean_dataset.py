@@ -2,7 +2,7 @@ import hashlib
 
 import pandas as pd
 
-import utils
+import Modelling.RottenFresh.utils as utils
 
 # config
 TARGET_COLUMN = "freshness"

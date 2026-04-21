@@ -2,7 +2,7 @@ import cv2
 import matplotlib.pyplot as plt
 import numpy as np
 
-from utils import load_image
+from Modelling.RottenFresh.utils import load_image
 
 
 def grabcut_mask(img, debug=False):
