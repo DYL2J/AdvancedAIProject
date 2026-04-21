@@ -16,13 +16,13 @@ Each model is developed and documented independently, with explanations provided
 ```
 Advanced-AI/
 │
-├── Prototyping/
-│   
+├── Prototyping/   
 │
 └── Modelling/
     │
     ├── ProdPred/
-    │   
+    │   └── LogModel/
+    │   └── Dataset/
     │
     └── RottenFresh/
         
