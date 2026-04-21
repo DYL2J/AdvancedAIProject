@@ -1,0 +1,66 @@
+{
+  "input_image": "mank.jpg",
+  "device": "cuda",
+  "freshness_evaluation": {
+    "freshness_prediction": "rotten",
+    "freshness_confidence": 0.9998759031295776,
+    "predicted_index": 1,
+    "class_probabilities": {
+      "fresh": 0.00012414070079103112,
+      "rotten": 0.9998759031295776
+    },
+    "freshness_plot_path": "analysis_outputs\\mank\\freshness_prediction.png"
+  },
+  "defect_detection": {
+    "shap_plot_path": "analysis_outputs\\mank\\shap_explanation.png",
+    "defect_overlay_path": "analysis_outputs\\mank\\defect_highlight_overlay.png",
+    "defect_mask_path": "analysis_outputs\\mank\\defect_mask.png",
+    "mean_abs_shap": 4.912729993248541e-06,
+    "max_abs_shap": 3.31582193465612e-05,
+    "defect_area_ratio": 0.0625
+  },
+  "quality_inspection": {
+    "features": {
+      "mask_area": 23952,
+      "area_ratio": 0.4139933628318584,
+      "bbox_area": 31005,
+      "extent": 0.7725205611998065,
+      "solidity": 0.9421262193908023,
+      "perimeter": 663.9137742519379,
+      "circularity": 0.6828546778845445,
+      "mean_r": 138.38518704074815,
+      "mean_g": 96.72979291917167,
+      "mean_b": 56.59740313961256,
+      "mean_h": 14.676477955911823,
+      "mean_s": 148.81696726786907,
+      "mean_v": 138.38518704074815,
+      "std_h": 2.1147171309111013,
+      "std_s": 32.31023654290548,
+      "std_v": 28.222361365481223,
+      "dark_ratio": 0.008851035404141616,
+      "brown_ratio": 0.9246826987307949,
+      "laplacian_var": 347.68756348807335,
+      "gray_std": 22.09422860819394
+    },
+    "quality_assessment": {
+      "quality_score": 75.0,
+      "quality_grade": "D",
+      "quality_label": "Poor",
+      "deductions": [
+        {
+          "reason": "High brown region ratio, indicating browning or rot.",
+          "points": 15,
+          "measured_value": 0.9246826987307949
+        },
+        {
+          "reason": "Severe browning detected.",
+          "points": 10,
+          "measured_value": 0.9246826987307949
+        }
+      ],
+      "interpretation": "Rule-based manual feature assessment using color, shape, and texture cues."
+    },
+    "feature_report_path": "analysis_outputs\\mank\\quality_features.json",
+    "segmented_product_path": "analysis_outputs\\mank\\segmented_product.png"
+  }
+}

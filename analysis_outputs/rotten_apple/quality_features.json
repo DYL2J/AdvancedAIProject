@@ -1,0 +1,37 @@
+{
+  "features": {
+    "mask_area": 19543,
+    "area_ratio": 0.4490579044117647,
+    "bbox_area": 23961,
+    "extent": 0.8156170443637578,
+    "solidity": 0.9846220544731205,
+    "perimeter": 571.8305143117905,
+    "circularity": 0.7510458361095876,
+    "mean_r": 198.1161029524638,
+    "mean_g": 127.04538709512357,
+    "mean_b": 79.58952054444046,
+    "mean_h": 16.49434580156578,
+    "mean_s": 153.695696668884,
+    "mean_v": 198.2163946169984,
+    "std_h": 23.076171757323614,
+    "std_s": 41.88251276865957,
+    "std_v": 45.854925567498675,
+    "dark_ratio": 0.006651998157908202,
+    "brown_ratio": 0.2711968479762575,
+    "laplacian_var": 229.23239461808757,
+    "gray_std": 40.455986048217206
+  },
+  "quality_assessment": {
+    "quality_score": 85.0,
+    "quality_grade": "C",
+    "quality_label": "Fair",
+    "deductions": [
+      {
+        "reason": "High brown region ratio, indicating browning or rot.",
+        "points": 15,
+        "measured_value": 0.2711968479762575
+      }
+    ],
+    "interpretation": "Rule-based manual feature assessment using color, shape, and texture cues."
+  }
+}

@@ -1,0 +1,67 @@
+{
+  "features": {
+    "mask_area": 9378,
+    "area_ratio": 0.256173513986014,
+    "bbox_area": 23616,
+    "extent": 0.39710365853658536,
+    "solidity": 0.8714142999857285,
+    "perimeter": 523.8132714033127,
+    "circularity": 0.4295038857552739,
+    "mean_r": 55.6744508423971,
+    "mean_g": 46.85615269780337,
+    "mean_b": 42.91213478353593,
+    "mean_h": 43.927703134996804,
+    "mean_s": 91.97622094263168,
+    "mean_v": 55.81957773512476,
+    "std_h": 63.84498763756732,
+    "std_s": 63.86254607965023,
+    "std_v": 40.927882526314946,
+    "dark_ratio": 0.7246747707400298,
+    "brown_ratio": 0.3524205587545319,
+    "laplacian_var": 616.9720254329875,
+    "gray_std": 40.99756183685402
+  },
+  "quality_assessment": {
+    "quality_score": 25.0,
+    "quality_grade": "F",
+    "quality_label": "Reject",
+    "deductions": [
+      {
+        "reason": "High dark regions ratio detected, indicating possible bruising or decay.",
+        "points": 18,
+        "measured_value": 0.7246747707400298
+      },
+      {
+        "reason": "Very high dark region ratio detected, indicating high levels of rot.",
+        "points": 12,
+        "measured_value": 0.7246747707400298
+      },
+      {
+        "reason": "High brown region ratio, indicating browning or rot.",
+        "points": 15,
+        "measured_value": 0.3524205587545319
+      },
+      {
+        "reason": "Severe browning detected.",
+        "points": 10,
+        "measured_value": 0.3524205587545319
+      },
+      {
+        "reason": "Low solidity detected, indicating prescence of dents, irregularity, or deformation.",
+        "points": 10,
+        "measured_value": 0.8714142999857285
+      },
+      {
+        "reason": "Low circularity detected, suggesting misshapen produce.",
+        "points": 4,
+        "measured_value": 0.4295038857552739
+      },
+      {
+        "reason": "Fruit coverage inside the bounding box is low.",
+        "points": 6,
+        "measured_value": 0.39710365853658536
+      }
+    ],
+    "interpretation": "Rule-based manual feature assessment using color, shape, and texture cues."
+  }
+}

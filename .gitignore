@@ -6,3 +6,4 @@ val_split.csv
 test_predictions_resnet18_noleak.csv
 produce_class_metrics.csv
 training_history.csv
+__pycache__/
