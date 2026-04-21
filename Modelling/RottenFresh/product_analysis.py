@@ -14,7 +14,7 @@ import torch.nn as nn
 from PIL import Image
 from torchvision import models
 
-from Modelling.RottenFresh.feature_extract import (
+from feature_extract import (
     compute_color_features,
     compute_shape_features,
     compute_texture_features,
