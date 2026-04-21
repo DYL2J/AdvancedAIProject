@@ -1,3 +1,5 @@
+import pathlib
+
 import joblib
 import pandas as pd
 
@@ -6,23 +8,29 @@ MIN_USER_ID = 1
 MAX_USER_ID = 200
 DEFAULT_TOP_N = 5
 
+_SCRIPT_DIR = pathlib.Path(__file__).parent
+_LOGMODEL_DIR = _SCRIPT_DIR.parents[1] / "LogModel"
+_DATASET_DIR = _SCRIPT_DIR.parents[1] / "Modelling" / "ProdPred" / "Dataset"
+
 FEATURES = [
     "user_total_orders",
     "product_total_purchases",
     "product_reorder_rate",
     "user_product_purchase_count",
+    "days_since_last_purchase",
+    "organic_preference",
     "category",
 ]
 
 
 def load_artifacts() -> tuple:
     """Load model artifacts and input datasets."""
-    model = joblib.load("reorder_model.joblib")
-    product_purchase_counts = joblib.load("product_purchase_counts.joblib")
-    product_reorder_rates = joblib.load("product_reorder_rates.joblib")
-    user_product_counts_df = pd.read_csv("user_product_purchase_counts.csv")
-    products = pd.read_csv("products.csv")
-    orders = pd.read_csv("orders.csv")
+    model = joblib.load(_LOGMODEL_DIR / "reorder_model.joblib")
+    product_purchase_counts = joblib.load(_LOGMODEL_DIR / "product_purchase_counts.joblib")
+    product_reorder_rates = joblib.load(_LOGMODEL_DIR / "product_reorder_rates.joblib")
+    user_product_counts_df = pd.read_csv(_DATASET_DIR / "user_product_purchase_counts.csv")
+    products = pd.read_csv(_DATASET_DIR / "products.csv")
+    orders = pd.read_csv(_DATASET_DIR / "orders.csv")
 
     return (
         model,
@@ -73,6 +81,20 @@ def build_user_feature_frame(
     user_data["product_reorder_rate"] = user_data["product_id"].map(
         product_reorder_rates
     )
+
+    # days_since_last_purchase: approximate from order_number position.
+    # Newest order = 0 days, oldest = up to 365 days.
+    user_orders = orders[orders["user_id"] == user_id]
+    if not user_orders.empty:
+        max_order_num = user_orders["order_number"].max() or 1
+        avg_recency_frac = (user_orders["order_number"] / max_order_num).mean()
+        user_data["days_since_last_purchase"] = int((1.0 - avg_recency_frac) * 365)
+    else:
+        user_data["days_since_last_purchase"] = 365
+
+    # organic_preference: training uses a seeded synthetic organic flag not
+    # stored in products.csv, so the demo defaults to 0.0.
+    user_data["organic_preference"] = 0.0
 
     return user_data
 
