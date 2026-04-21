@@ -37,10 +37,10 @@ Advanced-AI/
   Contains the finalised implementations of the two main systems:
 
   * **ProdPred/**
-    Focuses on predicting customer reorder behaviour using structured data and machine learning models.
+    Focuses on predicting products that a customer will reorder, using linear models and collaborative filtering.
 
   * **RottenFresh/**
-    Focuses on image classification, distinguishing between fresh and rotten produce using computer vision techniques.
+    Focuses on image classification, distinguishing between fresh and rotten produce and identifying problem areas.
 
 Each modelling subfolder includes its own dedicated README 
 
