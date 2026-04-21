@@ -1,2 +1,5 @@
 .env
 deduplicated_dataset.csv
+test_split.csv
+train_split.csv
+val_split.csv
