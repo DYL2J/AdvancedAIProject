@@ -1,0 +1,71 @@
+{
+  "input_image": "banana_h.jpg",
+  "device": "cuda",
+  "freshness_evaluation": {
+    "freshness_prediction": "fresh",
+    "freshness_confidence": 1.0,
+    "predicted_index": 0,
+    "class_probabilities": {
+      "fresh": 1.0,
+      "rotten": 2.0262252320435437e-08
+    },
+    "freshness_plot_path": "analysis_outputs\\banana_h\\freshness_prediction.png"
+  },
+  "defect_detection": {
+    "shap_plot_path": "analysis_outputs\\banana_h\\shap_explanation.png",
+    "defect_overlay_path": "analysis_outputs\\banana_h\\defect_highlight_overlay.png",
+    "defect_mask_path": "analysis_outputs\\banana_h\\defect_mask.png",
+    "mean_abs_shap": 4.284213028601086e-07,
+    "max_abs_shap": 3.7254993708766242e-06,
+    "defect_area_ratio": 0.04613759566326531
+  },
+  "quality_inspection": {
+    "features": {
+      "mask_area": 17502,
+      "area_ratio": 0.30385416666666665,
+      "bbox_area": 47970,
+      "extent": 0.3648530331457161,
+      "solidity": 0.602280701754386,
+      "perimeter": 778.0386666059494,
+      "circularity": 0.36332491593855876,
+      "mean_r": 226.16032453433894,
+      "mean_g": 190.97486001599816,
+      "mean_b": 88.53593874985715,
+      "mean_h": 22.205347960233116,
+      "mean_s": 155.70357673408753,
+      "mean_v": 226.16032453433894,
+      "std_h": 1.3284244160028302,
+      "std_s": 31.817252715159537,
+      "std_v": 15.46446586754381,
+      "dark_ratio": 0.00017140898183064793,
+      "brown_ratio": 0.01594103531025026,
+      "laplacian_var": 688.1598699378445,
+      "gray_std": 17.96246702913197
+    },
+    "quality_assessment": {
+      "quality_score": 80.0,
+      "quality_grade": "C",
+      "quality_label": "Fair",
+      "deductions": [
+        {
+          "reason": "Low solidity detected, indicating prescence of dents, irregularity, or deformation.",
+          "points": 10,
+          "measured_value": 0.602280701754386
+        },
+        {
+          "reason": "Low circularity detected, suggesting misshapen produce.",
+          "points": 4,
+          "measured_value": 0.36332491593855876
+        },
+        {
+          "reason": "Fruit coverage inside the bounding box is low.",
+          "points": 6,
+          "measured_value": 0.3648530331457161
+        }
+      ],
+      "interpretation": "Rule-based manual feature assessment using color, shape, and texture cues."
+    },
+    "feature_report_path": "analysis_outputs\\banana_h\\quality_features.json",
+    "segmented_product_path": "analysis_outputs\\banana_h\\segmented_product.png"
+  }
+}

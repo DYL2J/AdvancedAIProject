@@ -376,7 +376,7 @@ class ProductAnalyzer:
         deduct(
             dark_ratio > 0.20,
             18,
-            "High dark regian ratio detected, indicating possible bruising or decay.",
+            "High dark regions ratio detected, indicating possible bruising or decay.",
             dark_ratio,
         )
         deduct(
@@ -400,7 +400,7 @@ class ProductAnalyzer:
         )
         deduct(
             circularity < 0.55,
-            8,
+            4,
             "Low circularity detected, suggesting misshapen produce.",
             circularity,
         )
@@ -425,18 +425,21 @@ class ProductAnalyzer:
 
         score = float(np.clip(score, 0, 100))
 
-        if score >= 85:
+        if score >= 95:
             grade = "A"
             label = "Excellent"
-        elif score >= 70:
+        elif score >= 90:
             grade = "B"
             label = "Good"
-        elif score >= 55:
+        elif score >= 80:
             grade = "C"
             label = "Fair"
-        elif score >= 40:
+        elif score >= 75:
             grade = "D"
             label = "Poor"
+        elif score >= 60:
+            grade = "E"
+            label = "Atrocious"
         else:
             grade = "F"
             label = "Reject"
