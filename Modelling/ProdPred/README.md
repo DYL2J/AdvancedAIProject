@@ -63,6 +63,7 @@ Outputs:
 ### furtherDataCreation.py
 
 Here the dataset creation was taken further to better imitate real world behaviour. 
+
 ---
 
 ### LogisticModel.ipynb
@@ -78,9 +79,10 @@ Key steps:
 - Includes recommendation function for given user ID.
 - Exports the trained model and lookup artifacts to `Models/`
 
-## LogModelFurtherInvest.ipynb
+### LogModelFurtherInvest.ipynb
 
 Further investigation took place here, including but not limited to SHAP and model parameter tuning
+
 ---
 
 ### reatrain_with_new_features.py
