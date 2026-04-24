@@ -26,14 +26,15 @@ The system supports:
 ### 1. Clone the repository
 
 ```bash
-git clone <repo-url>
-cd <repo-name>
+git clone https://github.com/DYL2J/AdvancedAIProject.git
+cd AdvancedAIProject
 ```
 
 ### 2. Install Dependencies
-
-Configure dataset path:
-* add dataset link
+Install all required packages:
+```bash
+pip install -r requirements.txt
+```
 
 ### 3. Create a .env file:
 This .env is based off the .env_example file
@@ -49,50 +50,6 @@ dataset/
 ├── banana__healthy/
 ├── banana__rotten/
 ```
-
-
-## Project Structure
-
-
-
-## Table of Contents
-
-- Setup
-- Project Structure
-- Usage
-- Data Pipeline
-- Model Training
-- Analysis Pipeline
-- Outputs
-- Notes
-
----
-
-## Setup
-
-### 1. Clone the repository
-
-    git clone <your-repo-url>
-    cd <repo-name>
-
-### 2. Install dependencies
-
-    pip install -r requirements.txt
-
-### 3. Configure dataset path
-
-Create a `.env` file:
-
-    DATASET_PATH=/absolute/path/to/your/dataset
-
-Example dataset structure:
-
-    dataset/
-    ├── apple__healthy/
-    ├── apple__rotten/
-    ├── banana__healthy/
-    ├── banana__rotten/
-
 ---
 
 ## Project Structure
